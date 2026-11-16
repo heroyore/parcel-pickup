@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="description" content="上传取件截图，自动识别并按地点、柜号合并整理取件码。数据只存在你的浏览器里。">
+  <title>取件码收纳盒</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+      </span>
+      <div class="brand-text">
+        <h1>取件码收纳盒</h1>
+        <p>截图丢进来，按地点和柜子自动归堆</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="stats">
+        <div class="stat"><strong id="stat-pending">0</strong><span>待取</span></div>
+        <div class="stat"><strong id="stat-picked">0</strong><span>已取</span></div>
+      </div>
+      <button id="btn-settings" class="icon-btn" title="设置与数据" aria-label="设置与数据">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21h-4v-.1A1.7 1.7 0 008.9 19.4a1.7 1.7 0 00-1.9.3l-.1.1-2.8-2.8.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.6-1H3v-4h.1A1.7 1.7 0 004.6 8.9a1.7 1.7 0 00-.3-1.9l-.1-.1 2.8-2.8.1.1a1.7 1.7 0 001.9.3H9A1.7 1.7 0 0010 3.1V3h4v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1 2.8 2.8-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21v4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="主导航">
+    <button class="tab active" id="tab-import" role="tab" aria-selected="true" aria-controls="panel-import">导入截图</button>
+    <button class="tab" id="tab-list" role="tab" aria-selected="false" aria-controls="panel-list">取件清单 <span id="tab-count" class="pill">0</span></button>
+  </nav>
+
+  <main>
+    <section id="panel-import" class="panel active" role="tabpanel">
+      <div id="drop-zone" class="drop-zone">
+        <span class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5l5 5"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+        </span>
+        <h2>把取件截图拖到这里</h2>
+        <p>支持多选、拖拽，也可以直接 <kbd>Ctrl</kbd> + <kbd>V</kbd> 粘贴</p>
+        <button id="btn-choose" class="btn primary">选择图片</button>
+        <input type="file" id="file-input" accept="image/*" multiple hidden>
+      </div>
+
+      <div class="toolbar">
+        <button id="btn-recognize" class="btn primary" disabled>开始识别</button>
+        <button id="btn-add-all" class="btn" disabled>全部加入清单</button>
+        <button id="btn-manual" class="btn ghost">手动添加</button>
+      </div>
+
+      <div id="progress-wrap" class="progress-wrap hidden">
+        <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+        <span id="progress-text">准备中…</span>
+      </div>
+
+      <div id="queue-head" class="section-head hidden">
+        <h3>识别结果 <span id="queue-count" class="muted"></span></h3>
+        <p class="hint">核对一遍再入库。取件码认错，跑一趟就白费了。字段都能直接改。</p>
+      </div>
+      <div id="queue" class="queue"></div>
+      <div id="import-empty" class="empty">还没有截图。先扔几张进来。</div>
+    </section>
+
+    <section id="panel-list" class="panel" role="tabpanel">
+      <div id="list-empty" class="empty">
+        <h2>清单是空的</h2>
+        <p>导入截图，或者手动添加一条。</p>
+        <button id="btn-empty-add" class="btn primary">手动添加</button>
+      </div>
+      <div id="group-list" class="groups"></div>
+      <details id="picked-wrap" class="picked-wrap hidden">
+        <summary>已取记录 <span id="picked-count" class="muted"></span></summary>
+        <div id="picked-list" class="picked-list"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer class="bottom-bar">
+    <button id="btn-copy-all" class="btn primary">复制全部待取</button>
+    <button id="btn-export" class="btn ghost">导出 / 备份</button>
+    <button id="btn-clear-picked" class="btn ghost danger">清除已取</button>
+  </footer>
+</div>
+
+<dialog id="manual-dialog" class="modal">
+  <form id="manual-form" method="dialog">
+    <div class="modal-head">
+      <h2 id="manual-title">添加取件信息</h2>
+      <button type="button" class="icon-btn modal-close" data-close="manual-dialog" aria-label="关闭">&times;</button>
+    </div>
+    <input type="hidden" id="field-id">
+    <label>取件地点 <span class="req">*</span>
+      <input id="field-location" type="text" placeholder="例如：南门菜鸟驿站" autocomplete="off" required>
+    </label>
+    <div class="field-row">
+      <label>柜号 / 货架
+        <input id="field-cabinet" type="text" placeholder="例如：A柜、3号货架" autocomplete="off">
+      </label>
+      <label>取件码 <span class="req">*</span>
+        <input id="field-code" type="text" placeholder="多个用空格或 / 分开" autocomplete="off" required>
+      </label>
+    </div>
+    <div class="field-row">
+      <label>来源
+        <input id="field-carrier" type="text" placeholder="例如：丰巢、中通" autocomplete="off">
+      </label>
+      <label>备注
+        <input id="field-note" type="text" placeholder="选填" autocomplete="off">
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" data-close="manual-dialog">取消</button>
+      <button type="submit" class="btn primary">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="settings-dialog" class="modal wide">
+  <div class="modal-head">
+    <h2>设置与数据</h2>
+    <button type="button" class="icon-btn modal-close" data-close="settings-dialog" aria-label="关闭">&times;</button>
+  </div>
+  <div class="settings-body">
+    <section class="settings-section">
+      <h3>识别规则</h3>
+      <p class="hint">地点关键词，一行一个。识别时优先匹配含这些词的文字行。</p>
+      <textarea id="cfg-location-keys" rows="5" spellcheck="false"></textarea>
+      <p class="hint">额外的取件码正则，一行一条。只写取件码那部分的模式，用括号捕获。留空则用内置规则。</p>
+      <textarea id="cfg-code-regex" rows="3" spellcheck="false" placeholder="例如：码\s*[:：]?\s*(\d{6,8})"></textarea>
+    </section>
+    <section class="settings-section">
+      <h3>图片处理</h3>
+      <label class="inline-label">识别放大倍数
+        <select id="cfg-scale">
+          <option value="1">1 倍（最快）</option>
+          <option value="1.5">1.5 倍（推荐）</option>
+          <option value="2">2 倍（小字更清楚）</option>
+        </select>
+      </label>
+      <label class="inline-label check">
+        <input type="checkbox" id="cfg-thumb" checked>
+        <span>保存缩略图，方便核对原截图（占本地存储空间）</span>
+      </label>
+      <p class="hint">识别引擎和中文语言包已随页面一起加载，首次使用需要下载约 23MB，之后浏览器会缓存。</p>
+    </section>
+    <section class="settings-section">
+      <h3>数据管理</h3>
+      <p class="hint">所有取件码只保存在这台设备的浏览器里，不会上传到任何服务器。清理浏览器数据会一起清掉，重要数据请导出备份。</p>
+      <div class="btn-row">
+        <button id="btn-save-settings" class="btn primary">保存设置</button>
+        <button id="btn-export-json" class="btn">下载 JSON 备份</button>
+        <button id="btn-import-json" class="btn">从 JSON 恢复</button>
+        <input type="file" id="json-file" accept="application/json,.json" hidden>
+        <button id="btn-clear-all" class="btn ghost danger">清空全部数据</button>
+      </div>
+    </section>
+  </div>
+</dialog>
+
+<dialog id="export-dialog" class="modal">
+  <div class="modal-head">
+    <h2>导出清单</h2>
+    <button type="button" class="icon-btn modal-close" data-close="export-dialog" aria-label="关闭">&times;</button>
+  </div>
+  <p class="hint">按地点和柜号分组，直接粘到微信或备忘录里。</p>
+  <div class="btn-row vertical">
+    <button id="btn-export-text" class="btn primary">复制为文本</button>
+    <button id="btn-export-csv" class="btn">下载 CSV</button>
+    <button id="btn-download-json" class="btn">下载 JSON 备份</button>
+  </div>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/tesseract/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
